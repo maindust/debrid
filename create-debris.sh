@@ -16,12 +16,18 @@ sudo mkdir -p /mnt/plex/Movies /mnt/plex/TV /mnt/plex/"Movies - 4K" /mnt/plex/"T
 echo "Creating /opt/zurg-testing directory..."
 sudo mkdir -p /opt/zurg-testing
 
-# Create the config.yml file for Zurg, using an environment variable for the token
+# Store the API token in an .env file for persistent use
+echo "Storing Real-Debrid API token in /opt/zurg-testing/.env..."
+sudo tee /opt/zurg-testing/.env > /dev/null <<EOL
+REAL_DEBRID_API_TOKEN=$RD_API_TOKEN
+EOL
+
+# Create the config.yml file for Zurg, using the environment variable from the .env file
 echo "Creating config.yml in /opt/zurg-testing..."
 sudo tee /opt/zurg-testing/config.yml > /dev/null <<EOL
 # Zurg configuration version
 zurg: v1
-token: \${REAL_DEBRID_API_TOKEN} # Using environment variable for token
+token: \${REAL_DEBRID_API_TOKEN} # Using environment variable from .env file
 # host: "[::]"
 # port: 9999
 # username:
@@ -64,7 +70,7 @@ vendor = other
 pacer_min_sleep = 0
 EOL
 
-# Create the docker-compose.yml file for Zurg and Rclone, with environment variable for token
+# Create the docker-compose.yml file for Zurg and Rclone, referencing the .env file for token
 echo "Creating docker-compose.yml in /opt/zurg-testing..."
 sudo tee /opt/zurg-testing/docker-compose.yml > /dev/null <<EOL
 version: '3.8'
@@ -80,8 +86,8 @@ services:
     volumes:
       - ./config.yml:/app/config.yml
       - ./data:/app/data
-    environment:
-      - REAL_DEBRID_API_TOKEN=$RD_API_TOKEN
+    env_file:
+      - .env
 
   rclone:
     image: rclone/rclone:latest
