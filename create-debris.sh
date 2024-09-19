@@ -22,12 +22,12 @@ sudo tee /opt/zurg-testing/.env > /dev/null <<EOL
 REAL_DEBRID_API_TOKEN=$RD_API_TOKEN
 EOL
 
-# Create the config.yml file for Zurg, using the environment variable from the .env file
-echo "Creating config.yml in /opt/zurg-testing..."
+# Inject the Real-Debrid API token directly into the config.yml file
+echo "Creating config.yml in /opt/zurg-testing with the Real-Debrid API token..."
 sudo tee /opt/zurg-testing/config.yml > /dev/null <<EOL
 # Zurg configuration version
 zurg: v1
-token: \${REAL_DEBRID_API_TOKEN} # Using environment variable from .env file
+token: $RD_API_TOKEN # Injected Real-Debrid API token
 # host: "[::]"
 # port: 9999
 # username:
