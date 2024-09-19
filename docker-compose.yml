@@ -1,0 +1,334 @@
+networks:
+  app_net:
+    driver: bridge
+
+services:
+  autoscan:
+    container_name: autoscan
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 3030/tcp
+    hostname: autoscan
+    image: saltydk/autoscan:latest
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/autoscan:/config
+    depends_on:
+      - rclone
+      - plex
+      - radarr
+      - sonarr
+    networks:
+      - app_net
+
+  petio:
+    command:
+      - node
+      - petio.js
+    container_name: petio
+    ports:
+      - 7777/tcp
+    hostname: petio
+    image: ghcr.io/petio-team/petio:latest
+    restart: unless-stopped
+    user: 1000:1000
+    volumes:
+      - /mnt:/mnt
+      - /opt/petio:/app/api/config
+    working_dir: /app
+    depends_on:
+      - radarr
+      - sonarr
+      - plex
+    networks:
+      - app_net
+
+  petio-mongo:
+    command:
+      - mongod
+    container_name: petio-mongo
+    ports:
+      - 27017/tcp
+    hostname: petio-mongo
+    image: mongo:4.4
+    restart: unless-stopped
+    user: 1000:1000
+    volumes:
+      - /mnt:/mnt
+      - /opt/petio/mongodb/config:/data/configdb
+      - /opt/petio/mongodb:/data/db
+    networks:
+      - app_net
+
+  plex:
+    container_name: plex
+    devices:
+      - /dev/dri:/dev/dri
+    environment:
+      - PLEX_UID=1000
+      - PLEX_GID=1000
+    ports:
+      - 1900/udp
+      - 32400/tcp
+      - 32410/udp
+      - 32412/udp
+      - 32413/udp
+      - 32414/udp
+      - 32469/tcp
+      - 8324/tcp
+    hostname: plex
+    image: plexinc/pms-docker:latest
+    restart: unless-stopped
+    volumes:
+      - /dev/shm:/dev/shm
+      - /mnt/local/transcodes/plex:/transcode
+      - /mnt:/mnt
+      - /opt/plex:/config
+      - /opt/scripts:/scripts
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  prowlarr:
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 9696/tcp
+    hostname: prowlarr
+    image: ghcr.io/hotio/prowlarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/prowlarr/Definitions/Custom:/Custom
+      - /opt/prowlarr:/config
+    networks:
+      - app_net
+
+  radarr:
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 7878/tcp
+    hostname: radarr
+    image: ghcr.io/hotio/radarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/radarr:/config
+      - /opt/scripts:/scripts
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  radarr4k:
+    container_name: radarr4k
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 7878/tcp
+    hostname: radarr4k
+    image: ghcr.io/hotio/radarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/radarr4k:/config
+      - /opt/scripts:/scripts
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  radarr4kdv:
+    container_name: radarr4kdv
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 7878/tcp
+    hostname: radarr4kdv
+    image: ghcr.io/hotio/radarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/radarr4kdv:/config
+      - /opt/scripts:/scripts
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  radarranime:
+    container_name: radarranime
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 7878/tcp
+    hostname: radarranime
+    image: ghcr.io/hotio/radarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/radarranime:/config
+      - /opt/scripts:/scripts
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  blackhole:
+    image: ghcr.io/westsurname/scripts/blackhole:latest
+    container_name: blackhole
+    user: "1000:1000"
+    volumes:
+      - ${REALDEBRID_MOUNT_TORRENTS_PATH:-/dev/null}:${REALDEBRID_MOUNT_TORRENTS_PATH:-/dev/null}
+      - ${TORBOX_MOUNT_TORRENTS_PATH:-/dev/null}:${TORBOX_MOUNT_TORRENTS_PATH:-/dev/null}
+      - ${BLACKHOLE_BASE_WATCH_PATH}/${BLACKHOLE_SONARR_PATH}:/${BLACKHOLE_BASE_WATCH_PATH}/${BLACKHOLE_SONARR_PATH}
+      - ${BLACKHOLE_BASE_WATCH_PATH}/${BLACKHOLE_RADARR_PATH}:/${BLACKHOLE_BASE_WATCH_PATH}/${BLACKHOLE_RADARR_PATH}
+      - ./logs:/app/logs
+      - /mnt:/mnt
+    env_file:
+      - .env
+    environment:
+      - BLACKHOLE_BASE_WATCH_PATH=/${BLACKHOLE_BASE_WATCH_PATH}
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+    restart: unless-stopped
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  sonarr:
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 8989/tcp
+    hostname: sonarr
+    image: ghcr.io/hotio/sonarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/scripts:/scripts
+      - /opt/sonarr:/config
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  sonarr4k:
+    container_name: sonarr4k
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 8989/tcp
+    hostname: sonarr4k
+    image: ghcr.io/hotio/sonarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/scripts:/scripts
+      - /opt/sonarr4k:/config
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  sonarr4kdv:
+    container_name: sonarr4kdv
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 8989/tcp
+    hostname: sonarr4kdv
+    image: ghcr.io/hotio/sonarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/scripts:/scripts
+      - /opt/sonarr4kdv:/config
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  sonarranime:
+    container_name: sonarranime
+    environment:
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 8989/tcp
+    hostname: sonarranime
+    image: ghcr.io/hotio/sonarr:release
+    restart: unless-stopped
+    volumes:
+      - /mnt:/mnt
+      - /opt/scripts:/scripts
+      - /opt/sonarranime:/config
+      - /usr/bin/rclone:/usr/bin/rclone
+    depends_on:
+      - rclone
+    networks:
+      - app_net
+
+  zurg:
+    image: ghcr.io/debridmediamanager/zurg-testing:v0.9.3-hotfix.11
+    container_name: zurg
+    restart: unless-stopped
+    healthcheck:
+      test: curl -f localhost:9999/dav/version.txt || exit 1
+    ports:
+      - 9999:9999
+    volumes:
+      - ./config.yml:/app/config.yml
+      - ./data:/app/data
+    networks:
+      - app_net
+
+  rclone:
+    image: rclone/rclone:latest
+    container_name: rclone
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - /mnt/remote/realdebrid:/data:rshared
+      - /opt/zurg-testing/rclone.conf:/config/rclone/rclone.conf
+      - /mnt:/mnt
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    devices:
+      - /dev/fuse:/dev/fuse:rwm
+    depends_on:
+      zurg:
+        condition: service_healthy
+    command: "mount zurg: /data --allow-non-empty --allow-other --uid=1000 --gid=1000"
+    networks:
+      - app_net
