@@ -10,8 +10,8 @@ sudo apt update && sudo apt upgrade -y
 
 # Create necessary directories
 echo "Creating directory structure under /mnt..."
-sudo mkdir -p /mnt/symlinks/radarr /mnt/symlinks/sonarr /mnt/symlinks/radarr4k /mnt/symlinks/sonarr4k
-sudo mkdir -p /mnt/plex/Movies /mnt/plex/TV /mnt/plex/"Movies - 4K" /mnt/plex/"TV - 4K"
+sudo mkdir -p /mnt/symlinks/radarr /mnt/symlinks/sonarr /mnt/symlinks/radarr4k /mnt/symlinks/sonarr4k /mnt/symlinks/radarranime /mnt/symlinks/sonarranime
+sudo mkdir -p /mnt/plex/Movies /mnt/plex/TV /mnt/plex/"Movies - 4K" /mnt/plex/"TV - 4K" /mnt/plex/anime
 
 echo "Creating /opt/zurg-testing directory..."
 sudo mkdir -p /opt/zurg-testing
