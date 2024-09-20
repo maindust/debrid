@@ -1,12 +1,52 @@
 #!/bin/bash
 
-# Load environment variables from .env file
-if [ -f ".env" ]; then
-  export $(grep -v '^#' .env | xargs)
-else
-  echo "Error: .env file not found!"
-  exit 1
-fi
+# Function to prompt user for necessary environment variables and create the .env file
+create_env_file() {
+  echo "Please provide the following information:"
+  
+  # Prompt user for Real-Debrid API Key
+  read -p "Real-Debrid API Key: " RD_API_KEY
+  
+  # Prompt user for PUID (Process User ID)
+  read -p "PUID (e.g., 1000): " PUID
+  
+  # Prompt user for GUID (Group User ID)
+  read -p "GUID (e.g., 1000): " GUID
+  
+  # Prompt user for RD mount path
+  read -p "Real-Debrid Mount Path (e.g., /mnt/remote/realdebrid): " RD_MOUNT_PATH
+  
+  # Prompt user for application data directory
+  read -p "Application Data Directory (e.g., /opt): " APP_DATA_DIRECTORY
+  
+  # Create the .env file with the provided values
+  echo "Creating .env file..."
+  tee .env > /dev/null <<EOL
+RD_API_KEY=$RD_API_KEY
+PUID=$PUID
+GUID=$GUID
+RD_MOUNT_PATH=$RD_MOUNT_PATH
+APP_DATA_DIRECTORY=$APP_DATA_DIRECTORY
+EOL
+
+  echo ".env file has been created."
+}
+
+# Function to load the environment variables from the .env file
+load_env_file() {
+  if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+  else
+    echo "Error: .env file not found!"
+    exit 1
+  fi
+}
+
+# Create the .env file by prompting the user for input
+create_env_file
+
+# Load environment variables from the newly created .env file
+load_env_file
 
 # Ensure necessary variables are set in the .env file
 if [ -z "$RD_API_KEY" ] || [ -z "$PUID" ] || [ -z "$GUID" ] || [ -z "$RD_MOUNT_PATH" ] || [ -z "$APP_DATA_DIRECTORY" ]; then
@@ -14,7 +54,7 @@ if [ -z "$RD_API_KEY" ] || [ -z "$PUID" ] || [ -z "$GUID" ] || [ -z "$RD_MOUNT_P
   exit 1
 fi
 
-# Update and upgrade the system (assuming the user runs with root privileges)
+# Update and upgrade the system
 echo "Updating and upgrading the system..."
 apt update && apt upgrade -y
 
@@ -107,7 +147,7 @@ services:
     command: "mount zurg: /data --allow-non-empty --allow-other --uid=$PUID --gid=$GUID --umask=002 --dir-cache-time 10s"
 EOL
 
-# Prompt the user to select services as before (same logic as in previous example)
+# Prompt the user to select services as before
 echo "Select the services you would like to install (separate choices with spaces):"
 echo "1. Autoscan"
 echo "2. Petio"
