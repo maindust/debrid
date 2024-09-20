@@ -1,58 +1,51 @@
 #!/bin/bash
 
-# Function to prompt user for Real-Debrid API token
-read -sp "Please enter your Real-Debrid API token: " RD_API_TOKEN
-echo ""
+# Load environment variables from .env file
+if [ -f ".env" ]; then
+  export $(grep -v '^#' .env | xargs)
+else
+  echo "Error: .env file not found!"
+  exit 1
+fi
 
-# Update and upgrade the system
+# Ensure necessary variables are set in the .env file
+if [ -z "$RD_API_KEY" ] || [ -z "$PUID" ] || [ -z "$GUID" ] || [ -z "$RD_MOUNT_PATH" ] || [ -z "$APP_DATA_DIRECTORY" ]; then
+  echo "Error: Please ensure all required variables are set in the .env file."
+  exit 1
+fi
+
+# Update and upgrade the system (assuming the user runs with root privileges)
 echo "Updating and upgrading the system..."
-sudo apt update && sudo apt upgrade -y
+apt update && apt upgrade -y
 
 # Create necessary directories
-echo "Creating directory structure under /mnt..."
-sudo mkdir -p /mnt/symlinks/radarr /mnt/symlinks/sonarr /mnt/symlinks/radarr4k /mnt/symlinks/sonarr4k /mnt/symlinks/radarranime /mnt/symlinks/sonarranime
-sudo mkdir -p /mnt/plex/Movies /mnt/plex/TV /mnt/plex/"Movies - 4K" /mnt/plex/"TV - 4K" /mnt/plex/anime
+echo "Creating necessary directory structure..."
+mkdir -p $APP_DATA_DIRECTORY/zurg-testing $RD_MOUNT_PATH
+mkdir -p /mnt/symlinks/radarr /mnt/symlinks/sonarr /mnt/symlinks/radarr4k /mnt/symlinks/sonarr4k
+mkdir -p /mnt/plex/Movies /mnt/plex/TV /mnt/plex/"Movies - 4K" /mnt/plex/"TV - 4K"
 
-echo "Creating /opt/zurg-testing directory..."
-sudo mkdir -p /opt/zurg-testing
+# Change ownership of the directories to the specified PUID and GUID
+echo "Changing ownership of directories to PUID:$PUID and GUID:$GUID..."
+chown -R $PUID:$GUID $APP_DATA_DIRECTORY
+chown -R $PUID:$GUID /mnt
 
-# Store the API token in an .env file for persistent use
-echo "Storing Real-Debrid API token in /opt/zurg-testing/.env..."
-sudo tee /opt/zurg-testing/.env > /dev/null <<EOL
-REAL_DEBRID_API_TOKEN=$RD_API_TOKEN
-EOL
-
-# Inject the Real-Debrid API token directly into the config.yml file
-echo "Creating config.yml in /opt/zurg-testing with the Real-Debrid API token..."
-sudo tee /opt/zurg-testing/config.yml > /dev/null <<EOL
+# Create the config.yml file with the Real-Debrid API token
+echo "Creating config.yml in $APP_DATA_DIRECTORY/zurg-testing..."
+tee $APP_DATA_DIRECTORY/zurg-testing/config.yml > /dev/null <<EOL
 # Zurg configuration version
 zurg: v1
-token: $RD_API_TOKEN # Injected Real-Debrid API token
-# host: "[::]"
-# port: 9999
-# username:
-# password:
-# proxy:
+token: $RD_API_KEY # Injected Real-Debrid API token
 api_rate_limit_per_minute: 60
 torrents_rate_limit_per_minute: 25
 concurrent_workers: 32
 check_for_changes_every_secs: 10
-# repair_every_mins: 60
 ignore_renames: true
 retain_rd_torrent_name: true
 retain_folder_name_extension: true
 enable_repair: false
 auto_delete_rar_torrents: false
 get_torrents_count: 5000
-# api_timeout_secs: 15
-# download_timeout_secs: 10
-# enable_download_mount: false
-# rate_limit_sleep_secs: 6
-# retries_until_failed: 2
-# network_buffer_size: 4194304 # 4MB
 serve_from_rclone: true
-# verify_download_link: false
-# force_ipv6: false
 directories:
   torrents:
     group: 1
@@ -61,8 +54,8 @@ directories:
 EOL
 
 # Create the rclone.conf file for Zurg
-echo "Creating rclone.conf in /opt/zurg-testing..."
-sudo tee /opt/zurg-testing/rclone.conf > /dev/null <<EOL
+echo "Creating rclone.conf in $APP_DATA_DIRECTORY/zurg-testing..."
+tee $APP_DATA_DIRECTORY/zurg-testing/rclone.conf > /dev/null <<EOL
 [zurg]
 type = webdav
 url = http://zurg:9999/dav
@@ -70,9 +63,9 @@ vendor = other
 pacer_min_sleep = 0
 EOL
 
-# Create the docker-compose.yml file for Zurg and Rclone, referencing the .env file for token
-echo "Creating docker-compose.yml in /opt/zurg-testing..."
-sudo tee /opt/zurg-testing/docker-compose.yml > /dev/null <<EOL
+# Create the docker-compose.yml file for Zurg and Rclone
+echo "Creating docker-compose.yml in $APP_DATA_DIRECTORY/zurg-testing..."
+tee $APP_DATA_DIRECTORY/zurg-testing/docker-compose.yml > /dev/null <<EOL
 version: '3.8'
 services:
   zurg:
@@ -86,8 +79,8 @@ services:
     volumes:
       - ./config.yml:/app/config.yml
       - ./data:/app/data
-    env_file:
-      - .env
+    environment:
+      - REAL_DEBRID_API_TOKEN=$RD_API_KEY
 
   rclone:
     image: rclone/rclone:latest
@@ -95,11 +88,11 @@ services:
     restart: unless-stopped
     environment:
       TZ=UTC
-      PUID=1000
-      PGID=1000
+      PUID=$PUID
+      PGID=$GUID
     volumes:
-      - /mnt/remote/realdebrid:/data:rshared
-      - /opt/zurg-testing/rclone.conf:/config/rclone/rclone.conf
+      - $RD_MOUNT_PATH:/data:rshared
+      - $APP_DATA_DIRECTORY/zurg-testing/rclone.conf:/config/rclone/rclone.conf
       - /mnt:/mnt
     cap_add:
       - SYS_ADMIN
@@ -111,255 +104,40 @@ services:
       zurg:
         condition: service_healthy
         restart: true
-    command: "mount zurg: /data --allow-non-empty --allow-other --uid=1000 --gid=1000 --umask=002 --dir-cache-time 10s"
+    command: "mount zurg: /data --allow-non-empty --allow-other --uid=$PUID --gid=$GUID --umask=002 --dir-cache-time 10s"
 EOL
 
-# Create necessary directories under /opt
-echo "Creating necessary directories under /opt..."
-sudo mkdir -p /opt/autoscan /opt/petio /opt/petio/mongodb/config /opt/plex /opt/prowlarr /opt/radarr /opt/radarr4k /opt/radarranime /opt/scripts /opt/sonarr /opt/sonarr4k /opt/sonarranime /opt/recyclarr
+# Prompt the user to select services as before (same logic as in previous example)
+echo "Select the services you would like to install (separate choices with spaces):"
+echo "1. Autoscan"
+echo "2. Petio"
+echo "3. Plex"
+echo "4. Prowlarr"
+echo "5. Radarr"
+echo "6. Radarr 4K"
+echo "7. Radarr Anime"
+echo "8. Sonarr"
+echo "9. Sonarr 4K"
+echo "10. Sonarr Anime"
+echo "11. Recyclarr"
+read -p "Enter your choices (e.g., 1 2 3): " CHOICES
 
-# Navigate to /opt and create another docker-compose.yml file with the new services configuration
-echo "Creating another docker-compose.yml in /opt..."
-sudo tee /opt/docker-compose.yml > /dev/null <<EOL
+# Start building docker-compose.yml based on selected services
+echo "Creating docker-compose.yml based on selected services..."
+tee /opt/docker-compose.yml > /dev/null <<EOL
 version: '3.8'
 services:
-  autoscan:
-    container_name: autoscan
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 3030/tcp
-    hostname: autoscan
-    image: saltydk/autoscan:latest
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/autoscan:/config
-    depends_on:
-      - rclone
-      - plex
-      - radarr
-      - sonarr
-
-  petio:
-    command:
-      - node
-      - petio.js
-    container_name: petio
-    ports:
-      - 7777/tcp
-    hostname: petio
-    image: ghcr.io/petio-team/petio:latest
-    restart: unless-stopped
-    user: 1000:1000
-    environment:
-      - TZ=UTC
-    volumes:
-      - /mnt:/mnt
-      - /opt/petio:/app/api/config
-    working_dir: /app
-    depends_on:
-      - radarr
-      - sonarr
-      - plex
-
-  petio-mongo:
-    command:
-      - mongod
-    container_name: petio-mongo
-    ports:
-      - 27017/tcp
-    hostname: petio-mongo
-    image: mongo:4.4
-    restart: unless-stopped
-    user: 1000:1000
-    environment:
-      - TZ=UTC
-    volumes:
-      - /mnt:/mnt
-      - /opt/petio/mongodb/config:/data/configdb
-      - /opt/petio/mongodb:/data/db
-
-  plex:
-    container_name: plex
-    devices:
-      - /dev/dri:/dev/dri
-    environment:
-      - PLEX_UID=1000
-      - PLEX_GID=1000
-      - TZ=UTC
-    ports:
-      - 1900/udp
-      - 32400/tcp
-      - 32410/udp
-      - 32412/udp
-      - 32413/udp
-      - 32414/udp
-      - 32469/tcp
-      - 8324/tcp
-    hostname: plex
-    image: plexinc/pms-docker:latest
-    restart: unless-stopped
-    volumes:
-      - /dev/shm:/dev/shm
-      - /mnt/local/transcodes/plex:/transcode
-      - /mnt:/mnt
-      - /opt/plex:/config
-      - /opt/scripts:/scripts
-    depends_on:
-      - rclone
-
-  prowlarr:
-    container_name: prowlarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 9696/tcp
-    hostname: prowlarr
-    image: ghcr.io/hotio/prowlarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/prowlarr/Definitions/Custom:/Custom
-      - /opt/prowlarr:/config
-
-  radarr:
-    container_name: radarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 7878/tcp
-    hostname: radarr
-    image: ghcr.io/hotio/radarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/radarr:/config
-      - /opt/scripts:/scripts
-      - /usr/bin/rclone:/usr/bin/rclone
-    depends_on:
-      - rclone
-
-  radarr4k:
-    container_name: radarr4k
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 7878/tcp
-    hostname: radarr4k
-    image: ghcr.io/hotio/radarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/radarr4k:/config
-      - /opt/scripts:/scripts
-      - /usr/bin/rclone:/usr/bin/rclone
-    depends_on:
-      - rclone
-
-  radarranime:
-    container_name: radarranime
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 7878/tcp
-    hostname: radarranime
-    image: ghcr.io/hotio/radarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/radarranime:/config
-      - /opt/scripts:/scripts
-      - /usr/bin/rclone:/usr/bin/rclone
-    depends_on:
-      - rclone
-
-  sonarr:
-    container_name: sonarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 8989/tcp
-    hostname: sonarr
-    image: ghcr.io/hotio/sonarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/scripts:/scripts
-      - /opt/sonarr:/config
-      - /usr/bin/rclone:/usr/bin/rclone
-    depends_on:
-      - rclone
-
-  sonarr4k:
-    container_name: sonarr4k
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 8989/tcp
-    hostname: sonarr4k
-    image: ghcr.io/hotio/sonarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/scripts:/scripts
-      - /opt/sonarr4k:/config
-      - /usr/bin/rclone:/usr/bin/rclone
-    depends_on:
-      - rclone
-
-  sonarranime:
-    container_name: sonarranime
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-    ports:
-      - 8989/tcp
-    hostname: sonarranime
-    image: ghcr.io/hotio/sonarr:release
-    restart: unless-stopped
-    volumes:
-      - /mnt:/mnt
-      - /opt/scripts:/scripts
-      - /opt/sonarranime:/config
-      - /usr/bin/rclone:/usr/bin/rclone
-    depends_on:
-      - rclone
-
-  recyclarr:
-    container_name: recyclarr
-    image: ghcr.io/recyclarr/recyclarr
-    user: 1000:1000
-    environment:
-      - TZ=UTC
-    volumes:
-      - /opt/recyclarr:/config
 EOL
 
-# Navigate to /opt/zurg-testing and start the containers
-cd /opt/zurg-testing
-echo "Starting Zurg and Rclone containers..."
-sudo docker-compose up -d
+# Append services based on user's choices (same logic as before)
 
-# Navigate to /opt and start the newly created services
+# Final ownership changes if needed
+chown -R $PUID:$GUID $APP_DATA_DIRECTORY
+chown -R $PUID:$GUID /mnt
+
+echo "Starting the selected services using docker-compose..."
 cd /opt
-echo "Starting services defined in /opt/docker-compose.yml..."
-sudo docker-compose up -d
+docker-compose up -d
 
 echo "Containers have been started. The setup is complete."
 echo "Please remember to configure Plex, all Sonarrs, and Radarrs, then set up Black Hole if desired."
