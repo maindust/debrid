@@ -169,7 +169,200 @@ version: '3.8'
 services:
 EOL
 
-# Append services based on user's choices (same logic as before)
+# Mapping the user's choices to service names
+declare -A services_map
+services_map[1]="autoscan"
+services_map[2]="petio"
+services_map[3]="plex"
+services_map[4]="prowlarr"
+services_map[5]="radarr"
+services_map[6]="radarr-4k"
+services_map[7]="radarr-anime"
+services_map[8]="sonarr"
+services_map[9]="sonarr-4k"
+services_map[10]="sonarr-anime"
+services_map[11]="recyclarr"
+
+# Function to append selected services to docker-compose.yml
+append_service_to_docker_compose() {
+  local service_name=$1
+  case $service_name in
+    autoscan)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  autoscan:
+    image: hotio/autoscan
+    container_name: autoscan
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/autoscan:/config
+      - /mnt:/mnt
+EOL
+    ;;
+    petio)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  petio:
+    image: petio/petio
+    container_name: petio
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/petio:/config
+EOL
+    ;;
+    plex)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  plex:
+    image: plexinc/pms-docker
+    container_name: plex
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/plex:/config
+      - /mnt/plex:/plex
+EOL
+    ;;
+    prowlarr)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  prowlarr:
+    image: linuxserver/prowlarr
+    container_name: prowlarr
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/prowlarr:/config
+      - /mnt:/mnt
+EOL
+    ;;
+    radarr)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  radarr:
+    image: linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/radarr:/config
+      - /mnt:/mnt
+EOL
+    ;;
+    radarr-4k)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  radarr-4k:
+    image: linuxserver/radarr
+    container_name: radarr-4k
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/radarr4k:/config
+      - /mnt:/mnt
+    environment:
+      - RADARR_INSTANCE=4k
+EOL
+    ;;
+    radarr-anime)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  radarr-anime:
+    image: linuxserver/radarr
+    container_name: radarr-anime
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/radarr-anime:/config
+      - /mnt:/mnt
+    environment:
+      - RADARR_INSTANCE=anime
+EOL
+    ;;
+    sonarr)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  sonarr:
+    image: linuxserver/sonarr
+    container_name: sonarr
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/sonarr:/config
+      - /mnt:/mnt
+EOL
+    ;;
+    sonarr-4k)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  sonarr-4k:
+    image: linuxserver/sonarr
+    container_name: sonarr-4k
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/sonarr4k:/config
+      - /mnt:/mnt
+    environment:
+      - SONARR_INSTANCE=4k
+EOL
+    ;;
+    sonarr-anime)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  sonarr-anime:
+    image: linuxserver/sonarr
+    container_name: sonarr-anime
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/sonarr-anime:/config
+      - /mnt:/mnt
+    environment:
+      - SONARR_INSTANCE=anime
+EOL
+    ;;
+    recyclarr)
+      tee -a /opt/docker-compose.yml > /dev/null <<EOL
+  recyclarr:
+    image: hotio/recyclarr
+    container_name: recyclarr
+    environment:
+      - PUID=$PUID
+      - PGID=$GUID
+      - TZ=Etc/UTC
+    volumes:
+      - $APP_DATA_DIRECTORY/recyclarr:/config
+      - /mnt:/mnt
+EOL
+    ;;
+  esac
+}
+
+# Process the user's selected choices
+for choice in $CHOICES; do
+  service_name=${services_map[$choice]}
+  append_service_to_docker_compose "$service_name"
+done
+
+# Finalizing the docker-compose.yml file
+tee -a /opt/docker-compose.yml > /dev/null <<EOL
+networks:
+  default:
+    driver: bridge
+EOL
 
 # Final ownership changes if needed
 chown -R $PUID:$GUID $APP_DATA_DIRECTORY
