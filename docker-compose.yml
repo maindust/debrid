@@ -1,0 +1,140 @@
+services:
+  swag:
+    image: lscr.io/linuxserver/swag
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - URL=
+      - SUBDOMAINS=wildcard
+      - VALIDATION=dns
+      - DNSPLUGIN=cloudflare
+      - DOCKER_MODS=linuxserver/mods:swag-auto-reload|linuxserver/mods:universal-package-install
+      - INSTALL_PACKAGES=rsync|git|nginx
+      - INSTALL_PIP_PACKAGES=apprise
+    volumes:
+      - /opt/swag:/config
+    ports:
+      - 443:443
+      - 80:80
+    networks:
+      - proxy
+    restart: unless-stopped
+
+  recyclarr:
+    image: ghcr.io/recyclarr/recyclarr
+    container_name: recyclarr
+    user: 1000:1000
+    networks:
+      - proxy
+    volumes:
+      - /opt/recyclarr/config:/config
+    environment:
+      - TZ=UTC
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    restart: unless-stopped
+#    ports:
+#      - "32400:32400"  # Web UI and streaming
+#      - "3005:3005"    # Plex HTPC
+#      - "8324:8324"    # Plex for Sonos
+#      - "32469:32469"  # DLNA
+#      - "1900:1900/udp" # DLNA Discovery
+#      - "32410:32410/udp" # GDM
+#      - "32412:32412/udp" # GDM
+#      - "32413:32413/udp" # GDM
+#      - "32414:32414/udp" # GDM
+    volumes:
+      - /opt/plex/config:/config
+      - /opt/plex/transcode:/transcode
+      - /mnt:/mnt
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - PLEX_CLAIM=  # Optional: Replace with your Plex claim token
+    networks:
+      - proxy
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+#    ports:
+#      - "9000:9000"  # Portainer UI
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/portainer/data:/data
+    networks:
+      - proxy
+
+  overseerr:
+    image: ghcr.io/sct/overseerr:latest
+    container_name: overseerr
+    restart: unless-stopped
+#    ports:
+#      - "5055:5055"  # Optional local port access
+    volumes:
+      - /opt/overseerr/config:/app/config
+    environment:
+      - LOG_LEVEL=info
+      - TZ=UTC
+    networks:
+      - proxy
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    restart: unless-stopped
+    volumes:
+      - /opt/sonarr/config:/config
+      - /mnt:/mnt
+#    ports:
+#      - 8989:8989
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    networks:
+      - proxy
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    volumes:
+      - /opt/radarr/config:/config
+      - /mnt:/mnt
+#    ports:
+#      - 7878:7878
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    networks:
+      - proxy
+
+  prowlarr:
+    container_name: prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
+#    ports:
+#      - 9696:9696
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    volumes:
+      - /opt/prowlarr/config:/config
+      - /opt/prowlarr/Custom:/config/Definitions/Custom
+    restart: unless-stopped
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: false
